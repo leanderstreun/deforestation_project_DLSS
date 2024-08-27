@@ -1,0 +1,103 @@
+// Define the rectangle using the provided coordinates
+var rectangle = ee.Geometry.Rectangle({
+  coords: [-61.63, -26.25, -61.4167, -26.1167],
+  geodesic: false
+});
+
+// Function to mask clouds using the QA_PIXEL band of Landsat 7 Collection 2 Level 2 data
+function maskLandsatClouds(image) {
+  var qa = image.select('QA_PIXEL');
+  var cloudShadowBitMask = (1 << 3); // Cloud shadow
+  var cloudsBitMask = (1 << 5);      // Clouds
+  var mask = qa.bitwiseAnd(cloudShadowBitMask).eq(0)
+      .and(qa.bitwiseAnd(cloudsBitMask).eq(0));
+  return image.updateMask(mask);
+}
+
+// Load Landsat 7 Collection 2 Level 2 data
+var landsat7 = ee.ImageCollection('LANDSAT/LE07/C02/T1_L2')
+  .filterBounds(rectangle)
+  .map(maskLandsatClouds);
+
+// Function to create a composite for a specific year
+function createComposite(year) {
+  var startDate = ee.Date.fromYMD(year, 1, 1);
+  var endDate = ee.Date.fromYMD(year, 12, 31);
+  var yearlyCollection = landsat7.filterDate(startDate, endDate);
+  return yearlyCollection.median();
+}
+
+// Create composites for 2014 and 2019
+var composite2014 = createComposite(2014);
+var composite2019 = createComposite(2019);
+
+// Visualization parameters for true color imagery
+var trueColorVis = {
+  bands: ['SR_B3', 'SR_B2', 'SR_B1'],
+  min: 7000,
+  max: 15000,  // Adjust based on stats when available
+  gamma: 1.4
+};
+
+// Define the areas for clipping as rectangles.
+var clipRectangles = [
+  ee.Geometry.Rectangle([-61.64, -26.25, -61.41, -26.11], null, false),
+  ee.Geometry.Rectangle([-61.59, -25.95, -61.36, -25.81], null, false),
+  ee.Geometry.Rectangle([-61.59, -25.75, -61.36, -25.61], null, false),
+  ee.Geometry.Rectangle([-61.34, -25.95, -61.11, -25.81], null, false)
+];
+
+// Clip the composite image using each rectangle geometry and export.
+clipRectangles.forEach(function(clipRectangle, index) {
+  var clippedComposite_2014 = composite2014.clip(clipRectangle);
+
+  // Scale the bands to 8-bit (0-255) range
+  var scaledComposite_2014 = clippedComposite_2014.visualize({
+    bands: ['SR_B3', 'SR_B2', 'SR_B1'], // True color bands
+    min: 7000,
+    max: 15000,
+    gamma: 1.4,
+  });
+
+  // Export the clipped and scaled composite to Google Drive.
+  Export.image.toDrive({
+    image: scaledComposite_2014,
+    description: 'Clipped_Scaled_Composite_2014_' + (index + 1),
+    scale: 15,  // Scale in meters, Landsat 7 native resolution
+    region: clipRectangle,  // Define the area to export
+    fileFormat: 'GeoTIFF',  // File format
+    maxPixels: 1e13  // Maximum number of pixels allowed
+  });
+  
+  var clippedComposite_2019 = composite2019.clip(clipRectangle);
+
+  // Scale the bands to 8-bit (0-255) range
+  var scaledComposite_2019 = clippedComposite_2019.visualize({
+    bands: ['SR_B3', 'SR_B2', 'SR_B1'], // True color bands
+    min: 7000,
+    max: 15000,
+    gamma: 1.4,
+  });
+  
+  Export.image.toDrive({
+    image: scaledComposite_2019,
+    description: 'Clipped_Scaled_Composite_2019_' + (index + 1),
+    scale: 15,  // Scale in meters, Landsat 7 native resolution
+    region: clipRectangle,  // Define the area to export
+    fileFormat: 'GeoTIFF',  // File format
+    maxPixels: 1e13  // Maximum number of pixels allowed
+  });
+  
+});
+
+// Add the true color composites to the map
+Map.addLayer(composite2014, trueColorVis, 'True Color Landsat 7 Composite 2014');
+Map.addLayer(composite2019, trueColorVis, 'True Color Landsat 7 Composite 2019');
+
+// Add rectangle overlays to the map for visualization.
+clipRectangles.forEach(function(rectangle, index) {
+  Map.addLayer(rectangle, {color: 'red', fillColor: 'FF000080'}, 'Clipping Rectangle ' + (index + 1));
+});
+
+// Center the map on the rectangle
+Map.centerObject(rectangle, 8);
