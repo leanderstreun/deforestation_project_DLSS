@@ -1,0 +1,5 @@
+Landsat 7 Scan Line Corrector (SLC) Failure
+
+On May 31, 2003, the Scan Line Corrector (SLC), which compensates for the forward motion of the satellite, failed. Subsequent efforts to recover the SLC were not successful, and the failure is permanent. Without an operating SLC, the sensor’s line of sight traces a zig-zag pattern along the satellite ground track
+
+https://www.usgs.gov/landsat-missions/landsat-7#:~:text=The%20primary%20features%20on%20Landsat,over%20Thematic%20Mapper%20(TM)
